@@ -199,7 +199,7 @@ The for-loop's own `i++` then lands on the first character of the next token. Pa
 
 ## Simulator
 
-An [interactive browser-based simulator](./motor_simulator.html) is included. It replicates the exact parser logic, interrupt handler behaviour, XOR stepper sequence, SysTick dual-mode timing, and LED state machine.
+An [interactive browser-based simulator](./motor_simulator.html) is included. It replicates the exact parser logic, interrupt handler behaviour, XOR stepper sequence, SysTick dual-mode timing, and LED state machine. Download the simulator, then run it using any modern browser.
 
 > **AI-generated.** The simulator was built with Claude (Anthropic) as a development tool. The embedded C firmware is original work.
 
