@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TivaC Stepper Motor Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #080b0f;
+  --panel:    #0d1117;
+  --panel2:   #111820;
+  --border:   #1e2d40;
+  --border2:  #2a3f56;
+  --text:     #c8d8e8;
+  --dim:      #5a7a9a;
+  --accent:   #00c8ff;
+  --amber:    #ffaa00;
+  --green-on: #00ff66;
+  --red-on:   #ff1a44;
+  --blue-on:  #3399ff;
+  --coil-on:  #ff8800;
+  --lcd-bg:   #040d06;
+  --lcd-fg:   #00ff66;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-display: 'Orbitron', sans-serif;
+  --font-lcd: 'VT323', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  background-image: radial-gradient(ellipse at 20% 0%, #0a1520 0%, transparent 60%),
+                    radial-gradient(ellipse at 80% 100%, #0a1520 0%, transparent 60%);
+  color: var(--text);
+  font-family: var(--font-mono);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* ===== HEADER ===== */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 20px rgba(0,200,255,0.05);
+}
+.logo {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-shadow: 0 0 20px rgba(0,200,255,0.4);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-sub { font-size: 13px; color: var(--dim); letter-spacing: 1px; font-family: var(--font-mono); }
+.header-right { display: flex; align-items: center; gap: 16px; }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green-on);
+  box-shadow: 0 0 8px var(--green-on);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.mode-toggle {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.mode-btn {
+  padding: 7px 20px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--dim);
+  transition: all 0.2s;
+}
+.mode-btn.active {
+  background: var(--accent);
+  color: #000;
+}
+.mode-btn:hover:not(.active) { color: var(--text); }
+
+/* ===== MAIN LAYOUT ===== */
+.main {
+  display: grid;
+  grid-template-columns: 330px 1fr 420px;
+  flex: 1;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  min-height: 0;
+}
+.panel {
+  border-right: 1px solid var(--border);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+.panel:last-child { border-right: none; }
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  color: var(--dim);
+  text-transform: uppercase;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ===== TIVAC BOARD PANEL ===== */
+.board-chip {
+  background: var(--panel2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 14px;
+  position: relative;
+}
+.chip-label {
+  font-size: 12px;
+  color: var(--dim);
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+}
+.chip-label span { color: var(--amber); }
+
+/* LEDs */
+.leds-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.led-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.led-label { font-size: 12px; color: var(--dim); letter-spacing: 1px; }
+.led {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.08);
+  transition: background 0.1s, box-shadow 0.1s;
+  position: relative;
+  overflow: hidden;
+}
+.led::after {
+  content: '';
+  position: absolute;
+  top: 4px; left: 4px;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.3);
+}
+.led.off { background: #1a1a1a; }
+.led.red { background: var(--red-on); box-shadow: 0 0 10px var(--red-on), 0 0 24px rgba(255,26,68,0.4); }
+.led.blue { background: var(--blue-on); box-shadow: 0 0 10px var(--blue-on), 0 0 24px rgba(51,153,255,0.4); }
+.led.green { background: var(--green-on); box-shadow: 0 0 10px var(--green-on), 0 0 24px rgba(0,255,102,0.4); }
+
+/* Buttons */
+.btns-row { display: flex; gap: 10px; justify-content: center; }
+.hw-btn {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 2px solid;
+  transition: all 0.1s;
+  flex: 1;
+  text-align: center;
+}
+.hw-btn:active { transform: scale(0.93); }
+.btn-kill {
+  background: rgba(255,26,68,0.1);
+  border-color: rgba(255,26,68,0.5);
+  color: var(--red-on);
+}
+.btn-kill:hover { background: rgba(255,26,68,0.25); border-color: var(--red-on); }
+.btn-start {
+  background: rgba(0,255,102,0.08);
+  border-color: rgba(0,255,102,0.4);
+  color: var(--green-on);
+}
+.btn-start:hover { background: rgba(0,255,102,0.2); border-color: var(--green-on); }
+
+/* Coil indicators */
+.coil-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+.coil-wrap { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.coil-label { font-size: 12px; color: var(--dim); }
+.coil-led {
+  width: 22px; height: 22px;
+  border-radius: 4px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  transition: background 0.08s, box-shadow 0.08s;
+}
+.coil-led.on {
+  background: var(--coil-on);
+  box-shadow: 0 0 6px var(--coil-on), 0 0 14px rgba(255,136,0,0.3);
+  border-color: var(--coil-on);
+}
+
+/* UART status */
+.uart-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+}
+.uart-tag { color: var(--dim); font-size: 13px; letter-spacing: 1px; }
+.uart-status {
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  transition: color 0.3s;
+}
+.uart-status.on { color: var(--green-on); }
+.uart-status.off { color: var(--red-on); }
+
+/* State indicator */
+.state-box {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.state-row { display: flex; justify-content: space-between; }
+.state-key { color: var(--dim); }
+.state-val { color: var(--accent); font-weight: bold; }
+.state-val.err { color: var(--red-on); }
+.state-val.ok { color: var(--green-on); }
+.state-val.warn { color: var(--amber); }
+
+/* ===== MOTOR PANEL ===== */
+.motor-panel {
+  background: var(--panel2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  gap: 0;
+}
+#motorCanvas {
+  border-radius: 50%;
+  cursor: default;
+  margin-bottom: 16px;
+}
+.motor-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 500px;
+}
+.stat-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.stat-label { font-size: 11px; color: var(--dim); letter-spacing: 1.5px; margin-bottom: 4px; }
+.stat-val {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.stat-val.running { color: var(--green-on); text-shadow: 0 0 12px rgba(0,255,102,0.5); }
+.stat-unit { font-size: 11px; color: var(--dim); margin-top: 2px; }
+
+/* ===== RIGHT PANEL ===== */
+/* LCD */
+.lcd {
+  background: var(--lcd-bg);
+  border: 2px solid #1a3a1a;
+  border-radius: 6px;
+  padding: 16px;
+  font-family: var(--font-lcd);
+  font-size: 28px;
+  line-height: 1.5;
+  color: var(--lcd-fg);
+  min-height: 160px;
+  box-shadow: inset 0 0 20px rgba(0,20,0,0.8), 0 0 12px rgba(0,255,102,0.05);
+  position: relative;
+  overflow: hidden;
+}
+.lcd::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 3px);
+  pointer-events: none;
+  z-index: 1;
+}
+.lcd-line {
+  white-space: pre;
+  text-shadow: 0 0 6px rgba(0,255,102,0.6);
+  position: relative;
+  z-index: 2;
+}
+.lcd-line.highlight { color: #aaffaa; }
+.lcd-cursor {
+  display: inline-block;
+  width: 14px; height: 2px;
+  background: var(--lcd-fg);
+  box-shadow: 0 0 6px var(--lcd-fg);
+  animation: blink-cursor 1s step-end infinite;
+  vertical-align: middle;
+}
+@keyframes blink-cursor { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* CMD log */
+.cmd-log {
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 13px;
+  height: 130px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+.log-entry { font-size: 13px; }
+.log-entry.sent { color: var(--accent); }
+.log-entry.recv { color: var(--green-on); }
+.log-entry.err  { color: var(--red-on); }
+.log-entry.info { color: var(--amber); }
+.log-entry .ts  { color: var(--dim); margin-right: 6px; font-size: 12px; }
+
+/* Cmd input */
+.cmd-area {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 12px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  width: 100%;
+  height: 100px;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+  transition: border-color 0.2s;
+}
+.cmd-area:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,200,255,0.15); }
+.cmd-area::placeholder { color: var(--dim); font-size: 14px; }
+
+.send-btn {
+  width: 100%;
+  padding: 13px;
+  background: linear-gradient(135deg, rgba(0,200,255,0.15), rgba(0,200,255,0.05));
+  border: 1px solid rgba(0,200,255,0.4);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.send-btn:hover { background: rgba(0,200,255,0.2); border-color: var(--accent); box-shadow: 0 0 14px rgba(0,200,255,0.15); }
+.send-btn:active { transform: scale(0.97); }
+.send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.cmd-hint {
+  font-size: 12px;
+  color: var(--dim);
+  line-height: 1.7;
+}
+.cmd-hint strong { color: var(--amber); }
+
+/* ===== DEBUG PANEL ===== */
+.debug-panel {
+  background: #080d12;
+  border-top: 1px solid var(--border);
+  padding: 14px 20px;
+  display: none;
+  gap: 16px;
+}
+.debug-panel.visible { display: grid; grid-template-columns: repeat(3, 1fr); }
+.debug-section-title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--amber);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #1a1a00;
+}
+.debug-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.debug-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #0d1520;
+}
+.debug-table td:first-child { color: var(--dim); font-size: 13px; width: 60%; }
+.debug-table td:last-child { color: var(--text); font-weight: bold; font-family: var(--font-mono); }
+.debug-table td:last-child.changed { color: var(--amber); transition: color 0.5s; }
+.debug-table td:last-child.err { color: var(--red-on); }
+.debug-table td:last-child.ok { color: var(--green-on); }
+
+.bits-display {
+  font-size: 15px;
+  letter-spacing: 3px;
+  padding: 8px 10px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+.bit-1 { color: var(--coil-on); }
+.bit-0 { color: var(--dim); }
+
+.buf-display {
+  font-size: 13px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  max-height: 80px;
+  overflow-y: auto;
+  word-break: break-all;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--panel); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+/* ===== NOTICE ===== */
+.notice {
+  font-size: 12px;
+  color: var(--amber);
+  background: rgba(255,170,0,0.07);
+  border: 1px solid rgba(255,170,0,0.2);
+  border-radius: 4px;
+  padding: 8px 10px;
+  line-height: 1.6;
+}
+
+/* ===== MOTOR PANEL TITLE ===== */
+.motor-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  gap: 16px;
+  background: #0a0f16;
+  overflow: auto;
+}
+
+/* step seq display */
+.seq-display {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+}
+.seq-step {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  transition: all 0.1s;
+}
+.seq-step.current {
+  border-color: var(--coil-on);
+  color: var(--coil-on);
+  background: rgba(255,136,0,0.1);
+  box-shadow: 0 0 8px rgba(255,136,0,0.3);
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header>
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="2" y="2" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="5" y="5" width="10" height="10" rx="1" fill="rgba(0,200,255,0.2)" stroke="currentColor" stroke-width="1"/>
+      <circle cx="10" cy="10" r="2" fill="currentColor"/>
+    </svg>
+    TIVAC STEPPER SIM
+    <span class="logo-sub">TM4C123GH6PM · PORTB MOTOR · UART0</span>
+  </div>
+  <div class="header-right">
+    <div style="font-size:14px; color:var(--dim)">SYS CLK <span style="color:var(--accent)">16 MHz</span></div>
+    <div class="status-dot" id="sysDot"></div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btnRun" onclick="setMode('run')">RUN</button>
+      <button class="mode-btn" id="btnDebug" onclick="setMode('debug')">DEBUG</button>
+    </div>
+  </div>
+</header>
+
+<!-- ===== MAIN CONTENT ===== -->
+<div class="main">
+
+  <!-- LEFT: TivaC Board -->
+  <div class="panel">
+    <div class="panel-title">TIVAC LAUNCHPAD</div>
+
+    <div class="board-chip">
+      <div class="chip-label">PORT F — STATUS LEDs <span>PF1·PF2·PF3</span></div>
+      <div class="leds-row">
+        <div class="led-wrap">
+          <div class="led off" id="ledR"></div>
+          <div class="led-label">RED<br>PF1</div>
+        </div>
+        <div class="led-wrap">
+          <div class="led off" id="ledB"></div>
+          <div class="led-label">BLUE<br>PF2</div>
+        </div>
+        <div class="led-wrap">
+          <div class="led off" id="ledG"></div>
+          <div class="led-label">GRN<br>PF3</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="board-chip">
+      <div class="chip-label">PORT F — SWITCHES <span>PF0·PF4</span></div>
+      <div class="btns-row">
+        <button class="hw-btn btn-kill" onclick="pressKill()">⬛ SW1<br><span style="font-size:11px;font-weight:400">PF4 KILL</span></button>
+        <button class="hw-btn btn-start" onclick="pressStart()">▶ SW2<br><span style="font-size:11px;font-weight:400">PF0 START</span></button>
+      </div>
+    </div>
+
+    <div class="board-chip">
+      <div class="chip-label">PORT B — MOTOR COILS <span>PB0–PB3</span></div>
+      <div class="coil-row">
+        <div class="coil-wrap">
+          <div class="coil-led" id="coil0"></div>
+          <div class="coil-label">PB0<br>A+</div>
+        </div>
+        <div class="coil-wrap">
+          <div class="coil-led" id="coil1"></div>
+          <div class="coil-label">PB1<br>A–</div>
+        </div>
+        <div class="coil-wrap">
+          <div class="coil-led" id="coil2"></div>
+          <div class="coil-label">PB2<br>B+</div>
+        </div>
+        <div class="coil-wrap">
+          <div class="coil-led" id="coil3"></div>
+          <div class="coil-label">PB3<br>B–</div>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div style="font-size:12px; color:var(--dim); margin-bottom:6px;">STEP SEQUENCE</div>
+        <div class="seq-display" id="seqDisplay">
+          <div class="seq-step" id="seq0">1001</div>
+          <div class="seq-step" id="seq1">0101</div>
+          <div class="seq-step" id="seq2">1010</div>
+          <div class="seq-step" id="seq3">0110</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="uart-row">
+      <span class="uart-tag">UART0 RX</span>
+      <span class="uart-status on" id="uartStatus">ENABLED</span>
+    </div>
+
+    <div class="state-box" id="stateBox">
+      <div class="state-row"><span class="state-key">STATE</span> <span class="state-val" id="stateVal">IDLE</span></div>
+      <div class="state-row"><span class="state-key">RPM</span> <span class="state-val" id="sv_rpm">—</span></div>
+      <div class="state-row"><span class="state-key">DIR</span> <span class="state-val" id="sv_dir">—</span></div>
+      <div class="state-row"><span class="state-key">SPR</span> <span class="state-val" id="sv_spr">200</span></div>
+      <div class="state-row"><span class="state-key">PARSE</span> <span class="state-val err" id="sv_parse">ERR</span></div>
+    </div>
+
+
+  </div>
+
+  <!-- CENTER: Motor Visual -->
+  <div class="motor-center">
+    <div class="panel-title" style="align-self:stretch; border-bottom:1px solid var(--border); padding-bottom:8px; font-size:11px;">STEPPER MOTOR — FULL-STEP BIPOLAR DRIVE</div>
+    <canvas id="motorCanvas" width="340" height="340"></canvas>
+    <div class="motor-stats">
+      <div class="stat-box">
+        <div class="stat-label">RPM</div>
+        <div class="stat-val" id="m_rpm">0</div>
+        <div class="stat-unit">rev/min</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">ANGLE</div>
+        <div class="stat-val" id="m_angle">0.0</div>
+        <div class="stat-unit">degrees</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">STEPS</div>
+        <div class="stat-val" id="m_steps">0</div>
+        <div class="stat-unit">total</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">PERIOD</div>
+        <div class="stat-val" id="m_period">—</div>
+        <div class="stat-unit">ms/step</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: LCD + Commands -->
+  <div class="panel">
+    <div class="panel-title">REMOTE MCU — UART0 CONSOLE</div>
+
+    <div>
+      <div style="font-size:12px; color:var(--dim); letter-spacing:1.5px; margin-bottom:6px;">LCD DISPLAY</div>
+      <div class="lcd" id="lcd">
+        <div class="lcd-line highlight">TIVAC STEPPER SIM</div>
+        <div class="lcd-line">WAITING FOR CMDS</div>
+        <div class="lcd-line">&nbsp;</div>
+        <div class="lcd-line">RPM: --- DIR: ---</div>
+        <div class="lcd-line">SPR: 200</div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:12px; color:var(--dim); letter-spacing:1.5px; margin-bottom:6px;">TRANSMISSION LOG</div>
+      <div class="cmd-log" id="cmdLog">
+        <div class="log-entry info"><span class="ts">[init]</span>System ready. UART0 enabled.</div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:12px; color:var(--dim); letter-spacing:1.5px; margin-bottom:6px;">COMMAND INPUT — KEYPAD EMULATOR</div>
+      <textarea
+        class="cmd-area"
+        id="cmdInput"
+        placeholder="Enter command:&#10;  RPM=600&#10;  DIR=CW  or  DIR=CCW&#10;  SPR=400&#10;  INFO"
+      ></textarea>
+      <div style="margin: 6px 0;">
+        <button class="send-btn" id="sendBtn" onclick="sendCommand()">↑ TRANSMIT OVER UART0</button>
+      </div>
+      <div class="cmd-hint">
+        <strong>RPM</strong>=1–1200 &nbsp; <strong>DIR</strong>=CW|CCW &nbsp; <strong>SPR</strong>=1–2048 &nbsp; <strong>INFO</strong> (standalone)<br>
+        Multi-command sends supported: <code>RPM=600\nDIR=CW\n</code>. Press <strong>SW2</strong> to start, <strong>SW1</strong> to kill.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DEBUG PANEL ===== -->
+<div class="debug-panel" id="debugPanel">
+  <!-- Column 1: Variables -->
+  <div>
+    <div class="debug-section-title">▸ GLOBAL VARIABLES (util.c)</div>
+    <table class="debug-table">
+      <tr><td>INDEX</td><td id="d_INDEX">0</td></tr>
+      <tr><td>parseErr</td><td id="d_parseErr" class="err">1</td></tr>
+      <tr><td>RPM</td><td id="d_RPM">0</td></tr>
+      <tr><td>SPR</td><td id="d_SPR">200</td></tr>
+      <tr><td>DIR</td><td id="d_DIR">0 (CW)</td></tr>
+      <tr><td>MOTOR</td><td id="d_MOTOR">0</td></tr>
+      <tr><td>MASK1</td><td id="d_MASK1">0x00</td></tr>
+      <tr><td>MASK2</td><td id="d_MASK2">0x00</td></tr>
+      <tr><td>BLINKER</td><td id="d_BLINKER">0x04</td></tr>
+      <tr><td>COUNTER</td><td id="d_COUNTER">500</td></tr>
+      <tr><td>UART_EN</td><td id="d_UART" class="ok">true</td></tr>
+    </table>
+  </div>
+
+  <!-- Column 2: GPIO Registers -->
+  <div>
+    <div class="debug-section-title">▸ GPIO REGISTERS</div>
+    <div style="font-size:12px; color:var(--dim); margin-bottom:4px;">PORTF_DATA — [PF3:GRN · PF2:BLU · PF1:RED]</div>
+    <div class="bits-display" id="d_portf_bits">0000 0000</div>
+    <div style="font-size:12px; color:var(--dim); margin: 8px 0 4px;">PORTB_DATA — [PB3:B– · PB2:B+ · PB1:A– · PB0:A+]</div>
+    <div class="bits-display" id="d_portb_bits">0000 0000</div>
+    <div style="font-size:12px; color:var(--dim); margin: 8px 0 4px;">SysTick Period</div>
+    <div style="font-size:14px; color:var(--accent);" id="d_sysperiod">16000 ticks (1ms LED)</div>
+    <div style="font-size:12px; color:var(--dim); margin: 8px 0 4px;">Motor Angle / Steps</div>
+    <div style="font-size:14px; color:var(--green-on);" id="d_mangle">0.0° / 0 steps</div>
+    <div style="font-size:12px; color:var(--dim); margin: 8px 0 4px;">Step Period</div>
+    <div style="font-size:14px; color:var(--accent);" id="d_stepperiod">—</div>
+  </div>
+
+  <!-- Column 3: Command Buffer -->
+  <div>
+    <div class="debug-section-title">▸ COMMAND BUFFER (commands[256])</div>
+    <div style="font-size:12px; color:var(--dim); margin-bottom:4px;">ASCII (null shown as ·)</div>
+    <div class="buf-display" id="d_bufAscii">—</div>
+    <div style="font-size:12px; color:var(--dim); margin: 8px 0 4px;">HEX</div>
+    <div class="buf-display" id="d_bufHex">—</div>
+    <div style="font-size:12px; color:var(--dim); margin: 8px 0 4px;">Last Parse Event</div>
+    <div style="font-size:14px; color:var(--amber);" id="d_lastparse">No parse yet.</div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// SIMULATION ENGINE — mirrors the exact C logic from your project
+// ============================================================
+
+const RPM_MAX = 1200;
+const SPR_MAX = 2048;
+
+// --- Global state (mirrors util.c) ---
+let commands  = new Uint8Array(256);
+let INDEX     = 0;
+let parseErr  = 1;
+let RPM_v     = 0;
+let SPR_v     = 200;
+let DIR_v     = 0;
+let MOTOR     = 0;
+let MASK1     = 0;
+let MASK2     = 0;
+let BLINKER   = 0x04;   // set by PortF_init
+let COUNTER   = 500;
+
+// GPIO register simulation
+let PORTB_DATA = 0;
+let PORTF_DATA = 0;
+let UART_ENABLED = true;
+
+// Simulation timing
+let motorAngle  = 0;   // degrees (float)
+let totalSteps  = 0;
+let stepPeriodMs = 0;  // ms per step
+let stepAccum   = 0;   // ms accumulated for motor
+let blinkAccum  = 0;   // ms accumulated for LED 1ms ticks
+
+// Animation
+let lastTimestamp = 0;
+let animRunning   = false;
+
+// Logging
+let logCounter = 0;
+let lastParseMsg = 'No parse yet.';
+
+// Debug mode
+let debugModeOn = false;
+
+// ============================================================
+// PARSER — exact translation of parser.c logic
+// ============================================================
+
+function error_reset() {
+    RPM_v = 0;
+    SPR_v = 200;
+    DIR_v = 0;
+}
+
+function tokenize() {
+    for (let i = 0; i < INDEX; i++) {
+        const c = commands[i];
+        if (c === 10 || c === 13 || c === 61) { // \n \r =
+            commands[i] = 0;
+        }
+    }
+}
+
+function getString(startIdx) {
+    let s = '';
+    for (let i = startIdx; i < INDEX && commands[i] !== 0; i++) {
+        s += String.fromCharCode(commands[i]);
+    }
+    return s;
+}
+
+function string_to_int(str) {
+    if (str.length > 9) {
+        parseErr = 1;
+        return 0;
+    }
+    let num = 0;
+    for (const c of str) {
+        const temp = c.charCodeAt(0) - 48; // '0'
+        if (temp < 0 || temp > 9) {
+            parseErr = 1;
+            return 0;
+        }
+        num = (num * 10) + temp;
+    }
+    return num >>> 0;
+}
+
+function parse() {
+    // Save buffer snapshot for debug before tokenize
+    const rawBuf = commands.slice(0, INDEX);
+
+    tokenize();
+    parseErr = 0;
+
+    let RPM_detect  = 0;
+    let SPR_detect  = 0;
+    let DIR_detect  = 0;
+    let INFO_detect = 0;
+
+    // NOTE: This replicates the EXACT for-loop logic including the off-by-one
+    // that occurs when the inner while-loops advance i to the start of the
+    // next token — the for-loop's i++ then skips its first character.
+    // Single commands per transmission work correctly.
+    for (let i = 0; i < INDEX; i++) {
+        if (commands[i] === 0) continue;
+
+        const token = getString(i);
+
+        if (token === 'INFO') {
+            if (RPM_detect || DIR_detect || SPR_detect) { exitParse(rawBuf, 'EXIT: INFO mixed with other cmds'); return; }
+            INFO_detect = 1;
+            while (i < INDEX && commands[i]) i++;
+            while (i < INDEX && !commands[i+1]) i++;
+
+        } else if (token === 'RPM') {
+            if (RPM_detect || INFO_detect) { exitParse(rawBuf, 'EXIT: duplicate/mixed RPM'); return; }
+            i += 4;
+            if (i >= INDEX) { exitParse(rawBuf, 'EXIT: RPM value missing (i>=INDEX)'); return; }
+            if (!commands[i]) { exitParse(rawBuf, 'EXIT: RPM value null after ='); return; }
+            const valStr = getString(i);
+            RPM_v = string_to_int(valStr);
+            if (parseErr) { exitParse(rawBuf, 'EXIT: RPM string_to_int error'); return; }
+            if (RPM_v > RPM_MAX) { exitParse(rawBuf, `EXIT: RPM=${RPM_v} > RPM_MAX(${RPM_MAX})`); return; }
+            RPM_detect = 1;
+            while (i < INDEX && commands[i]) i++;
+            while (i < INDEX && !commands[i+1]) i++;
+
+        } else if (token === 'DIR') {
+            if (DIR_detect || INFO_detect) { exitParse(rawBuf, 'EXIT: duplicate/mixed DIR'); return; }
+            i += 4;
+            if (i >= INDEX) { exitParse(rawBuf, 'EXIT: DIR value missing'); return; }
+            if (!commands[i]) { exitParse(rawBuf, 'EXIT: DIR value null after ='); return; }
+            const dirStr = getString(i);
+            if (dirStr === 'CW')       DIR_v = 0;
+            else if (dirStr === 'CCW') DIR_v = 1;
+            else { exitParse(rawBuf, `EXIT: DIR="${dirStr}" invalid`); return; }
+            DIR_detect = 1;
+            while (i < INDEX && commands[i]) i++;
+            while (i < INDEX && !commands[i+1]) i++;
+
+        } else if (token === 'SPR') {
+            if (SPR_detect || INFO_detect) { exitParse(rawBuf, 'EXIT: duplicate/mixed SPR'); return; }
+            i += 4;
+            if (i >= INDEX) { exitParse(rawBuf, 'EXIT: SPR value missing'); return; }
+            if (!commands[i]) { exitParse(rawBuf, 'EXIT: SPR value null after ='); return; }
+            const valStr = getString(i);
+            SPR_v = string_to_int(valStr);
+            if (parseErr) { exitParse(rawBuf, 'EXIT: SPR string_to_int error'); return; }
+            if (SPR_v > SPR_MAX || !SPR_v) { exitParse(rawBuf, `EXIT: SPR=${SPR_v} out of range`); return; }
+            SPR_detect = 1;
+            while (i < INDEX && commands[i]) i++;
+            while (i < INDEX && !commands[i+1]) i++;
+
+        } else {
+            exitParse(rawBuf, `EXIT: unknown token "${token}"`);
+            return;
+        }
+    }
+
+    if (INFO_detect) {
+        // UART0_send(RPM_v), UART0_send(DIR_v), UART0_send(SPR_v) → display on LCD
+        handleInfo();
+    }
+
+    if (!RPM_v) parseErr = 1;
+
+    INDEX = 0;
+    if (!parseErr) {
+        BLINKER = 0x04;
+        lastParseMsg = `OK — RPM=${RPM_v}, DIR=${DIR_v ? 'CCW' : 'CW'}, SPR=${SPR_v}`;
+        addLog(`Parse OK: RPM=${RPM_v} DIR=${DIR_v ? 'CCW' : 'CW'} SPR=${SPR_v}`, 'recv');
+    } else {
+        lastParseMsg = `FAIL — !RPM: RPM was 0 after parsing`;
+        addLog('Parse ERR: RPM not set', 'err');
+    }
+    updateDebug(rawBuf);
+}
+
+function exitParse(rawBuf, reason) {
+    error_reset();
+    parseErr = 1;
+    INDEX = 0;
+    lastParseMsg = reason || 'Parse exited';
+    addLog(`Parse ERR: ${reason}`, 'err');
+    updateDebug(rawBuf);
+}
+
+function handleInfo() {
+    // Simulate UART0_send → decode on remote LCD
+    addLog(`INFO → RPM=${RPM_v} DIR=${DIR_v ? 'CCW' : 'CW'} SPR=${SPR_v}`, 'info');
+    setLcd([
+        'INFO RESPONSE',
+        `RPM: ${String(RPM_v).padStart(4, ' ')}`,
+        `DIR: ${DIR_v ? 'CCW' : 'CW '}`,
+        `SPR: ${String(SPR_v).padStart(4, ' ')}`,
+    ]);
+}
+
+// ============================================================
+// SW1 — Kill Switch (PF4, falling edge interrupt)
+// GPIO_PortF_Handler — pin 4 branch
+// ============================================================
+function pressKill() {
+    if (MOTOR) {
+        PORTB_DATA = 0;                    // halt motor
+        BLINKER    = 0x08;                 // green blink
+        MOTOR      = 0;
+        stepAccum  = 0;
+        blinkAccum = 0;
+        COUNTER    = 500;
+        PORTF_DATA = 0x08;                 // keep green on so it blinks on first SysTick toggle
+        UART_ENABLED = true;
+        addLog('SW1 (KILL): Motor stopped. UART re-enabled. Green blink.', 'info');
+    } else {
+        // Kill pressed when motor already off
+        UART_ENABLED = true;
+        addLog('SW1 (KILL): Motor already off. UART re-enabled.', 'info');
+    }
+    updateUI();
+}
+
+// ============================================================
+// SW2 — Start Switch (PF0, falling edge interrupt)
+// GPIO_PortF_Handler — pin 0 branch
+// ============================================================
+function pressStart() {
+    if (MOTOR) return;  // prevent delays in motor rotations per successive presses
+
+    if (parseErr) {
+        PORTF_DATA = PORTF_DATA & ~0x0E;   // clear LEDs
+        BLINKER    = 0x02;                 // red blink
+        blinkAccum = 0;
+        COUNTER    = 500;
+        addLog('SW2 (START): parseErr set — red blink.', 'err');
+        updateUI();
+        return;
+    }
+
+    UART_ENABLED = false;   // disable commands receiver
+    MOTOR        = 1;
+
+    // SysTick period = 960000000 / (RPM_v * SPR_v) ticks at 16MHz
+    stepPeriodMs = 60000 / (RPM_v * SPR_v);   // ms per step
+    stepAccum    = 0;
+
+    PORTF_DATA   = (PORTF_DATA & ~0x0E) | 0x08;  // solid green LED
+
+    // PortB clock enabled, motor direction
+    if (DIR_v) {
+        MASK1 = 0x03;
+        MASK2 = 0x0C;
+        PORTB_DATA = 5;   // 0101 — first CCW step
+    } else {
+        MASK1 = 0x0C;
+        MASK2 = 0x03;
+        PORTB_DATA = 9;   // 1001 — first CW step
+    }
+
+    addLog(`SW2 (START): Motor ON — RPM=${RPM_v} SPR=${SPR_v} DIR=${DIR_v ? 'CCW' : 'CW'} period=${stepPeriodMs.toFixed(3)}ms`, 'recv');
+    setLcd(['MOTOR RUNNING', `RPM: ${RPM_v}`, `DIR: ${DIR_v ? 'CCW' : 'CW'}`, `SPR: ${SPR_v}`]);
+    updateUI();
+}
+
+// ============================================================
+// UART SEND — fill commands buffer and trigger parse
+// ============================================================
+function sendCommand() {
+    if (!UART_ENABLED) {
+        addLog('TX BLOCKED: UART disabled while motor runs.', 'err');
+        return;
+    }
+    const text = document.getElementById('cmdInput').value;
+    if (!text.trim()) return;
+
+    // Fill commands buffer (simulate FIFO flush + timeout)
+    const bytes = text + '\n';
+    INDEX = 0;
+    for (let i = 0; i < bytes.length && i < 256; i++) {
+        commands[i] = bytes.charCodeAt(i) & 0xFF;
+        INDEX++;
+    }
+
+    addLog(`TX: ${text.trim()}`, 'sent');
+    document.getElementById('cmdInput').value = '';
+    parse();
+    updateUI();
+}
+
+// ============================================================
+// SYSTICK SIMULATION — called from animation loop
+// ============================================================
+function simSysTick(dtMs) {
+    if (MOTOR) {
+        // Motor step tick at stepPeriodMs
+        stepAccum += dtMs;
+        while (stepAccum >= stepPeriodMs) {
+            // SysTick_Handler motor branch (exact logic):
+            PORTB_DATA ^= MASK1;
+            MASK1      ^= MASK2;
+            // Advance rotor angle
+            motorAngle += (360 / SPR_v) * (DIR_v ? -1 : 1);
+            totalSteps++;
+            stepAccum -= stepPeriodMs;
+        }
+    } else {
+        // LED blink: 1ms SysTick, COUNTER counts down 500 ticks
+        blinkAccum += dtMs;
+        // Process 1ms ticks
+        while (blinkAccum >= 1) {
+            blinkAccum -= 1;
+            if (COUNTER > 0) {
+                COUNTER--;
+            } else {
+                COUNTER    = 500;
+                PORTF_DATA ^= BLINKER;
+            }
+        }
+    }
+}
+
+// ============================================================
+// ANIMATION LOOP
+// ============================================================
+function animLoop(timestamp) {
+    if (!animRunning) return;
+    if (lastTimestamp === 0) lastTimestamp = timestamp;
+    const dt = Math.min(timestamp - lastTimestamp, 50); // cap to 50ms to handle tab-switch gaps
+    lastTimestamp = timestamp;
+
+    simSysTick(dt);
+    drawMotor();
+    updateUI();
+    if (debugModeOn) updateDebug();
+
+    requestAnimationFrame(animLoop);
+}
+
+function startAnim() {
+    if (!animRunning) {
+        animRunning   = true;
+        lastTimestamp = 0;
+        requestAnimationFrame(animLoop);
+    }
+}
+
+// ============================================================
+// MOTOR CANVAS DRAWING
+// ============================================================
+const canvas = document.getElementById('motorCanvas');
+const ctx    = canvas.getContext('2d');
+
+// Sequences for step indicator
+const CW_STEPS  = [9, 5, 10, 6];
+const CCW_STEPS = [5, 6, 9, 10];
+
+function getCurrentSeqIdx() {
+    const seq = DIR_v ? CCW_STEPS : CW_STEPS;
+    for (let i = 0; i < seq.length; i++) {
+        if ((PORTB_DATA & 0x0F) === seq[i]) return i;
+    }
+    return -1;
+}
+
+function drawMotor() {
+    const W  = canvas.width;
+    const H  = canvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+    const R  = 140; // stator outer radius
+    const Ri = 85;  // rotor radius
+    const Rp = 70;  // rotor pole radius
+
+    ctx.clearRect(0, 0, W, H);
+
+    // === Background circle ===
+    const bgGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R + 30);
+    bgGrad.addColorStop(0, '#0d1520');
+    bgGrad.addColorStop(1, '#080b0f');
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 28, 0, Math.PI * 2);
+    ctx.fillStyle = bgGrad;
+    ctx.fill();
+
+    // === Stator ring ===
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = '#1e3050';
+    ctx.lineWidth   = 28;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = '#2a4060';
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+
+    // === 4 Stator poles (at 0°, 90°, 180°, 270°) ===
+    const poleAngles = [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2];
+    const poleLabels = ['A+', 'B–', 'A–', 'B+'];
+    const poleBits   = [0, 3, 1, 2]; // PB0, PB3, PB1, PB2
+
+    for (let p = 0; p < 4; p++) {
+        const ang    = poleAngles[p];
+        const active = (PORTB_DATA >> poleBits[p]) & 1;
+
+        const px = cx + R * Math.cos(ang);
+        const py = cy + R * Math.sin(ang);
+
+        // Pole body
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(ang);
+
+        const pw = 26, ph = 34;
+        const poleGrad = ctx.createLinearGradient(-pw / 2, -ph / 2, pw / 2, ph / 2);
+        if (active) {
+            poleGrad.addColorStop(0, '#cc5500');
+            poleGrad.addColorStop(1, '#ff7700');
+        } else {
+            poleGrad.addColorStop(0, '#1a2535');
+            poleGrad.addColorStop(1, '#243040');
+        }
+
+        ctx.beginPath();
+        ctx.roundRect(-pw / 2, -ph / 2, pw, ph, 4);
+        ctx.fillStyle = poleGrad;
+        ctx.fill();
+
+        if (active) {
+            ctx.shadowBlur   = 20;
+            ctx.shadowColor  = 'rgba(255,120,0,0.8)';
+            ctx.strokeStyle  = 'rgba(255,150,0,0.6)';
+            ctx.lineWidth    = 1.5;
+            ctx.stroke();
+            ctx.shadowBlur   = 0;
+        } else {
+            ctx.strokeStyle = '#2a3f56';
+            ctx.lineWidth   = 1;
+            ctx.stroke();
+        }
+
+        // Pole label
+        ctx.rotate(-ang);
+        ctx.fillStyle = active ? '#ffaa00' : '#3a5070';
+        ctx.font      = 'bold 9px Share Tech Mono';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(poleLabels[p], 0, 0);
+        ctx.restore();
+    }
+
+    // === Rotor body ===
+    const rotorGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Ri);
+    rotorGrad.addColorStop(0, '#1a2535');
+    rotorGrad.addColorStop(0.7, '#0f1a28');
+    rotorGrad.addColorStop(1, '#0a1220');
+    ctx.beginPath();
+    ctx.arc(cx, cy, Ri, 0, Math.PI * 2);
+    ctx.fillStyle = rotorGrad;
+    ctx.fill();
+    ctx.strokeStyle = MOTOR ? 'rgba(0,200,255,0.4)' : '#1e3050';
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+
+    if (MOTOR) {
+        ctx.shadowBlur  = 20;
+        ctx.shadowColor = 'rgba(0,200,255,0.4)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, Ri, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(0,200,255,0.15)';
+        ctx.lineWidth   = 8;
+        ctx.stroke();
+        ctx.shadowBlur  = 0;
+    }
+
+    // === Rotor angle indicator ===
+    const dispAngle = motorAngle * Math.PI / 180;
+    const smoothAngle = MOTOR
+        ? (motorAngle + (360 / SPR_v) * (DIR_v ? -1 : 1) * (stepAccum / stepPeriodMs)) * Math.PI / 180
+        : dispAngle;
+
+    // Arrow shaft
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + (Rp - 8) * Math.cos(smoothAngle), cy + (Rp - 8) * Math.sin(smoothAngle));
+    ctx.strokeStyle = MOTOR ? '#00ff66' : '#00c8ff';
+    ctx.lineWidth   = 3;
+    if (MOTOR) {
+        ctx.shadowBlur  = 12;
+        ctx.shadowColor = 'rgba(0,255,102,0.6)';
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Arrow head
+    const hx = cx + Rp * Math.cos(smoothAngle);
+    const hy = cy + Rp * Math.sin(smoothAngle);
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(hx - 10 * Math.cos(smoothAngle - 0.4), hy - 10 * Math.sin(smoothAngle - 0.4));
+    ctx.lineTo(hx - 10 * Math.cos(smoothAngle + 0.4), hy - 10 * Math.sin(smoothAngle + 0.4));
+    ctx.closePath();
+    ctx.fillStyle = MOTOR ? '#00ff66' : '#00c8ff';
+    ctx.fill();
+
+    // === Center hub ===
+    const hubGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 12);
+    hubGrad.addColorStop(0, '#2a3f56');
+    hubGrad.addColorStop(1, '#1a2535');
+    ctx.beginPath();
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.fillStyle   = hubGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#3a5070';
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+
+    // === SPR tick marks ===
+    if (SPR_v <= 64) {
+        for (let s = 0; s < SPR_v; s++) {
+            const ta  = (s * 2 * Math.PI) / SPR_v;
+            const tx1 = cx + (Ri + 4) * Math.cos(ta);
+            const ty1 = cy + (Ri + 4) * Math.sin(ta);
+            const tx2 = cx + (Ri + 9) * Math.cos(ta);
+            const ty2 = cy + (Ri + 9) * Math.sin(ta);
+            ctx.beginPath();
+            ctx.moveTo(tx1, ty1);
+            ctx.lineTo(tx2, ty2);
+            ctx.strokeStyle = 'rgba(0,200,255,0.25)';
+            ctx.lineWidth   = 1;
+            ctx.stroke();
+        }
+    }
+
+    // === Motor status text ===
+    ctx.font         = `bold 11px Orbitron`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle    = MOTOR ? '#00ff66' : '#3a5070';
+    ctx.fillText(MOTOR ? `${RPM_v} RPM` : 'STOPPED', cx, cy + Ri + 22);
+
+    // === Step sequence highlight ===
+    updateSeqDisplay();
+}
+
+function updateSeqDisplay() {
+    const seqSteps = ['1001', '0101', '1010', '0110'];
+    const vals     = [9, 5, 10, 6];
+    const cur      = PORTB_DATA & 0x0F;
+    for (let i = 0; i < 4; i++) {
+        const el  = document.getElementById(`seq${i}`);
+        const val = DIR_v ? [5, 6, 9, 10][i] : vals[i];
+        el.textContent = val.toString(2).padStart(4, '0');
+        el.classList.toggle('current', MOTOR && (cur === val));
+    }
+}
+
+// ============================================================
+// UI UPDATE
+// ============================================================
+function updateUI() {
+    // LEDs
+    const red   = (PORTF_DATA >> 1) & 1;
+    const blue  = (PORTF_DATA >> 2) & 1;
+    const green = (PORTF_DATA >> 3) & 1;
+
+    setLed('ledR', red   ? 'red'   : 'off');
+    setLed('ledB', blue  ? 'blue'  : 'off');
+    setLed('ledG', green ? 'green' : 'off');
+
+    // Coils
+    for (let i = 0; i < 4; i++) {
+        const el = document.getElementById(`coil${i}`);
+        el.classList.toggle('on', !!((PORTB_DATA >> i) & 1));
+    }
+
+    // UART
+    const uartEl = document.getElementById('uartStatus');
+    uartEl.textContent = UART_ENABLED ? 'ENABLED' : 'DISABLED';
+    uartEl.className   = 'uart-status ' + (UART_ENABLED ? 'on' : 'off');
+
+    // Send button
+    document.getElementById('sendBtn').disabled = !UART_ENABLED;
+
+    // State values
+    const stateEl = document.getElementById('stateVal');
+    if (MOTOR) {
+        stateEl.textContent = 'RUNNING';
+        stateEl.className   = 'state-val ok';
+    } else if (BLINKER === 0x02) {
+        stateEl.textContent = 'ERROR';
+        stateEl.className   = 'state-val err';
+    } else if (BLINKER === 0x08) {
+        stateEl.textContent = 'STANDBY';
+        stateEl.className   = 'state-val warn';
+    } else {
+        stateEl.textContent = 'IDLE';
+        stateEl.className   = 'state-val';
+    }
+
+    document.getElementById('sv_rpm').textContent   = RPM_v || '—';
+    document.getElementById('sv_dir').textContent   = RPM_v ? (DIR_v ? 'CCW' : 'CW') : '—';
+    document.getElementById('sv_spr').textContent   = SPR_v;
+    const pe  = document.getElementById('sv_parse');
+    pe.textContent = parseErr ? 'ERR' : 'OK';
+    pe.className   = 'state-val ' + (parseErr ? 'err' : 'ok');
+
+    // Motor stats
+    document.getElementById('m_rpm').textContent    = MOTOR ? RPM_v : 0;
+    document.getElementById('m_angle').textContent  = (motorAngle % 360 + 360) % 360 < 0.05 ? '0.0' : ((motorAngle % 360 + 360) % 360).toFixed(1);
+    document.getElementById('m_steps').textContent  = totalSteps;
+    document.getElementById('m_period').textContent = MOTOR ? stepPeriodMs.toFixed(3) : '—';
+    document.getElementById('m_rpm').className      = 'stat-val ' + (MOTOR ? 'running' : '');
+}
+
+function setLed(id, cls) {
+    const el  = document.getElementById(id);
+    el.className = `led ${cls}`;
+}
+
+function updateDebug(rawBuf) {
+    if (!debugModeOn && rawBuf === undefined) return;
+    document.getElementById('d_INDEX').textContent    = INDEX;
+    document.getElementById('d_parseErr').textContent = parseErr;
+    document.getElementById('d_parseErr').className   = parseErr ? 'err' : 'ok';
+    document.getElementById('d_RPM').textContent      = RPM_v;
+    document.getElementById('d_SPR').textContent      = SPR_v;
+    document.getElementById('d_DIR').textContent      = `${DIR_v} (${DIR_v ? 'CCW' : 'CW'})`;
+    document.getElementById('d_MOTOR').textContent    = MOTOR;
+    document.getElementById('d_MASK1').textContent    = '0x' + MASK1.toString(16).padStart(2, '0').toUpperCase();
+    document.getElementById('d_MASK2').textContent    = '0x' + MASK2.toString(16).padStart(2, '0').toUpperCase();
+    document.getElementById('d_BLINKER').textContent  = '0x' + BLINKER.toString(16).padStart(2, '0').toUpperCase();
+    document.getElementById('d_COUNTER').textContent  = COUNTER;
+    document.getElementById('d_UART').textContent     = UART_ENABLED ? 'true' : 'false';
+    document.getElementById('d_UART').className       = UART_ENABLED ? 'ok' : 'err';
+
+    // GPIO bits
+    document.getElementById('d_portf_bits').innerHTML = formatBits(PORTF_DATA);
+    document.getElementById('d_portb_bits').innerHTML = formatBits(PORTB_DATA);
+
+    // SysTick info
+    const ticks = MOTOR ? Math.round(960000000 / (RPM_v * SPR_v)) : 16000;
+    document.getElementById('d_sysperiod').textContent = MOTOR
+        ? `${ticks} ticks (${stepPeriodMs.toFixed(3)}ms/step)`
+        : `16000 ticks (1ms LED)`;
+    document.getElementById('d_mangle').textContent = `${motorAngle.toFixed(1)}° / ${totalSteps} steps`;
+    document.getElementById('d_stepperiod').textContent = MOTOR ? `${stepPeriodMs.toFixed(4)} ms` : '—';
+
+    // Buffer
+    if (rawBuf) {
+        let ascii = '', hex = '';
+        for (let i = 0; i < rawBuf.length; i++) {
+            const b = rawBuf[i];
+            ascii += b === 0 ? '·' : (b >= 32 && b < 127 ? String.fromCharCode(b) : '?');
+            hex   += b.toString(16).padStart(2, '0') + ' ';
+        }
+        document.getElementById('d_bufAscii').textContent = ascii || '—';
+        document.getElementById('d_bufHex').textContent   = hex.trim() || '—';
+    }
+    document.getElementById('d_lastparse').textContent = lastParseMsg;
+}
+
+function formatBits(val) {
+    const b = val.toString(2).padStart(8, '0');
+    return `<span class="${b[0]==='1'?'bit-1':'bit-0'}">${b[0]}</span><span class="${b[1]==='1'?'bit-1':'bit-0'}">${b[1]}</span><span class="${b[2]==='1'?'bit-1':'bit-0'}">${b[2]}</span><span class="${b[3]==='1'?'bit-1':'bit-0'}">${b[3]}</span> <span class="${b[4]==='1'?'bit-1':'bit-0'}">${b[4]}</span><span class="${b[5]==='1'?'bit-1':'bit-0'}">${b[5]}</span><span class="${b[6]==='1'?'bit-1':'bit-0'}">${b[6]}</span><span class="${b[7]==='1'?'bit-1':'bit-0'}">${b[7]}</span>`;
+}
+
+// ============================================================
+// LCD
+// ============================================================
+function setLcd(lines) {
+    const lcd  = document.getElementById('lcd');
+    const padded = lines.slice(0, 5).map(l => l.padEnd(16, ' ').slice(0, 16));
+    while (padded.length < 5) padded.push(''.padEnd(16, ' '));
+    lcd.innerHTML = padded.map((l, i) =>
+        `<div class="lcd-line${i === 0 ? ' highlight' : ''}">${escHtml(l)}</div>`
+    ).join('') + '<span class="lcd-cursor"></span>';
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============================================================
+// LOG
+// ============================================================
+function addLog(msg, type) {
+    const log = document.getElementById('cmdLog');
+    const d   = new Date();
+    const ts  = `[${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}]`;
+    const el  = document.createElement('div');
+    el.className = `log-entry ${type}`;
+    el.innerHTML = `<span class="ts">${ts}</span>${escHtml(msg)}`;
+    log.prepend(el);
+    // Trim old entries
+    while (log.children.length > 40) log.removeChild(log.lastChild);
+}
+
+// ============================================================
+// MODE TOGGLE
+// ============================================================
+function setMode(mode) {
+    debugModeOn = mode === 'debug';
+    document.getElementById('btnRun').classList.toggle('active', mode === 'run');
+    document.getElementById('btnDebug').classList.toggle('active', mode === 'debug');
+    const dp = document.getElementById('debugPanel');
+    dp.classList.toggle('visible', debugModeOn);
+    if (debugModeOn) updateDebug();
+}
+
+// ============================================================
+// KEYBOARD — prevent Enter from triggering send
+// ============================================================
+document.getElementById('cmdInput').addEventListener('keydown', function(e) {
+    // Enter key is just a newline in the textarea — never sends
+    // Nothing to do: default textarea behavior handles the newline
+});
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+    setLcd(['TIVAC STEPPER SIM', 'WAITING FOR CMDS', '', `RPM: --- DIR: ---`, `SPR: ${SPR_v}`]);
+    updateUI();
+    startAnim();
+}
+
+init();
+</script>
+</body>
+</html>
